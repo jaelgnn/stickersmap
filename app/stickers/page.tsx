@@ -107,7 +107,7 @@ function getFlagGradient(country: string): string {
     France: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Gabon: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
     Gambia: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
-    Georgia: "linear-gradient(90deg, #fff 0%, #fff 100%)",
+    Georgia: "linear-gradient(90deg, #fff 0%, #ce1126 100%)",
     Germany: "linear-gradient(90deg, #000 0%, #000 33%, #ce1126 33%, #ce1126 66%, #ffc72c 66%, #ffc72c 100%)",
     Ghana: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #ffc72c 33%, #ffc72c 66%, #007c5e 66%, #007c5e 100%)",
     Greece: "linear-gradient(90deg, #002395 0%, #002395 100%)",

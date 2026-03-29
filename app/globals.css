@@ -75,7 +75,8 @@ body {
   background: rgb(255 255 255 / 32%) !important;
 }
 
-.design-mono-map .leaflet-control-zoom a {
+.design-mono-map .leaflet-control-zoom a,
+.design-mono-map .leaflet-control-zoom button {
   width: 42px !important;
   height: 42px !important;
   line-height: 42px !important;
@@ -84,9 +85,15 @@ body {
   border-bottom-color: rgb(255 255 255 / 58%) !important;
   backdrop-filter: blur(14px);
   transition: background 180ms ease;
+  border: 0;
+  padding: 0;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.design-mono-map .leaflet-control-zoom a:hover {
+.design-mono-map .leaflet-control-zoom a:hover,
+.design-mono-map .leaflet-control-zoom button:hover {
   background: rgb(255 255 255 / 55%) !important;
 }
 
@@ -98,6 +105,56 @@ body {
 .design-mono-map .leaflet-control-zoom-out {
   border-bottom-left-radius: 999px !important;
   border-bottom-right-radius: 999px !important;
+}
+
+.design-mono-map .leaflet-control-recenter:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.design-mono-map .leaflet-control-recenter-wrap {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.design-mono-map .leaflet-control-recenter {
+  width: 54px !important;
+  height: 54px !important;
+  line-height: 54px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(255 255 255 / 70%) !important;
+  border-radius: 999px !important;
+  background: rgb(255 255 255 / 38%) !important;
+  box-shadow: 0 12px 26px rgb(0 0 0 / 20%) !important;
+  backdrop-filter: blur(14px);
+  color: #0f172a !important;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+
+.design-mono-map .leaflet-control-recenter:hover {
+  background: rgb(255 255 255 / 55%) !important;
+}
+
+.design-mono-map .leaflet-control-recenter-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.design-mono-map .leaflet-control-recenter-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 68%);
+  background: rgb(255 255 255 / 36%);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 12%);
+  backdrop-filter: blur(10px);
 }
 
 .glass-pin-wrapper {

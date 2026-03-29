@@ -133,31 +133,28 @@ function RecenterControl() {
           aria-label="Ricentra sulla mia posizione"
           title="Ricentra sulla mia posizione"
         >
-          <span className="leaflet-control-recenter-content">
-            {!isIconUnavailable ? (
-              <img
-                src="/icons8-near-me-ios11-120.png"
-                alt=""
-                aria-hidden="true"
-                className="h-11 w-auto mx-auto object-contain opacity-80"
-                onError={() => setIsIconUnavailable(true)}
-              />
-            ) : (
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                className="h-7 w-7 mx-auto"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 3l13 8-5.5 1.5L11 20l-2-7L5 3z" />
-              </svg>
-            )}
-            <span className="leaflet-control-recenter-dot" aria-hidden="true" />
-          </span>
+          {!isIconUnavailable ? (
+            <img
+              src="/icons8-near-me-ios11-120.png"
+              alt=""
+              aria-hidden="true"
+              className="h-11 w-11 mx-auto object-contain opacity-80"
+              onError={() => setIsIconUnavailable(true)}
+            />
+          ) : (
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-7 w-7 mx-auto"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 3l13 8-5.5 1.5L11 20l-2-7L5 3z" />
+            </svg>
+          )}
         </button>
       </div>
     </div>

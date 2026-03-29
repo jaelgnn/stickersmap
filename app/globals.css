@@ -139,24 +139,6 @@ body {
   background: rgb(255 255 255 / 55%) !important;
 }
 
-.design-mono-map .leaflet-control-recenter-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-
-.design-mono-map .leaflet-control-recenter-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  border: 1px solid rgb(255 255 255 / 68%);
-  background: rgb(255 255 255 / 36%);
-  box-shadow: 0 4px 10px rgb(0 0 0 / 12%);
-  backdrop-filter: blur(10px);
-}
-
 .glass-pin-wrapper {
   background: transparent;
   border: 0;

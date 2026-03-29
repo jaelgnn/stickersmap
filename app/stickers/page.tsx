@@ -41,8 +41,97 @@ type SessionStatusUpdate = {
   at: string;
 };
 
+const MANUAL_COUNTRY_ALIASES: Record<string, string> = {
+  "paesi bassi": "Netherlands",
+  olanda: "Netherlands",
+  nederland: "Netherlands",
+  "the netherlands": "Netherlands",
+  "stati uniti": "United States",
+  "stati uniti d america": "United States",
+  "regno unito": "United Kingdom",
+  "corea del sud": "South Korea",
+  "corea del nord": "North Korea",
+  "citta del vaticano": "Vatican City",
+  "citta del vaticano stato della citta del vaticano": "Vatican City",
+  "costa d avorio": "Côte d'Ivoire",
+  "cote d ivoire": "Côte d'Ivoire",
+  "repubblica del congo": "Congo (Brazzaville)",
+  "repubblica democratica del congo": "Congo (Kinshasa)",
+  "timor est": "Timor-Leste",
+};
+
+const MANUAL_ENGLISH_TO_ITALIAN: Record<string, string> = {
+  "congo (brazzaville)": "Repubblica del Congo",
+  "congo (kinshasa)": "Repubblica Democratica del Congo",
+  "côte d'ivoire": "Costa d'Avorio",
+  "saint kitts and nevis": "Saint Kitts e Nevis",
+  "saint vincent and the grenadines": "Saint Vincent e Grenadine",
+  "saint lucia": "Saint Lucia",
+  "vatican city": "Citta del Vaticano",
+  "timor-leste": "Timor Est",
+  "unknown country": "Paese sconosciuto",
+};
+
+function normalizeCountryName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function buildCountryNameMaps() {
+  const englishToItalian = new Map<string, string>();
+  const italianToEnglish = new Map<string, string>();
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const enDisplay = new Intl.DisplayNames(["en"], { type: "region" });
+  const itDisplay = new Intl.DisplayNames(["it"], { type: "region" });
+
+  for (const first of letters) {
+    for (const second of letters) {
+      const code = `${first}${second}`;
+      const englishName = enDisplay.of(code);
+      const italianName = itDisplay.of(code);
+
+      if (!englishName || !italianName) continue;
+      if (englishName === code || italianName === code) continue;
+
+      englishToItalian.set(normalizeCountryName(englishName), italianName);
+      italianToEnglish.set(normalizeCountryName(italianName), englishName);
+    }
+  }
+
+  return { englishToItalian, italianToEnglish };
+}
+
+const COUNTRY_NAME_MAPS = buildCountryNameMaps();
+
+function toCanonicalEnglishCountryName(country: string): string {
+  const normalized = normalizeCountryName(country);
+  if (!normalized) return country;
+
+  const manual = MANUAL_COUNTRY_ALIASES[normalized];
+  if (manual) return manual;
+
+  const fromItalian = COUNTRY_NAME_MAPS.italianToEnglish.get(normalized);
+  return fromItalian || country;
+}
+
+function toItalianCountryName(country: string): string {
+  const canonical = toCanonicalEnglishCountryName(country);
+  const normalizedCanonical = normalizeCountryName(canonical);
+
+  const manual = MANUAL_ENGLISH_TO_ITALIAN[normalizedCanonical];
+  if (manual) return manual;
+
+  const translated = COUNTRY_NAME_MAPS.englishToItalian.get(normalizedCanonical);
+  return translated || country;
+}
+
 // Function to get flag colors gradient for glass effect
 function getFlagGradient(country: string): string {
+  const canonicalCountry = toCanonicalEnglishCountryName(country);
   const gradients: { [key: string]: string } = {
     Afghanistan: "linear-gradient(90deg, #000 0%, #000 33%, #CE1126 33%, #CE1126 66%, #007C5E 66%, #007C5E 100%)",
     Albania: "linear-gradient(90deg, #CE1126 0%, #000 50%, #CE1126 100%)",
@@ -52,7 +141,7 @@ function getFlagGradient(country: string): string {
     "Antigua and Barbuda": "linear-gradient(45deg, #000 0%, #000 25%, #ce1126 25%, #ce1126 50%, #ffc72c 50%, #ffc72c 100%)",
     Argentina: "linear-gradient(90deg, #4b96d6 0%, #4b96d6 33%, #fff 33%, #fff 66%, #4b96d6 66%, #4b96d6 100%)",
     Armenia: "linear-gradient(90deg, #d90012 0%, #d90012 33%, #0033a0 33%, #0033a0 66%, #f3d857 66%, #f3d857 100%)",
-    Australia: "linear-gradient(90deg, #00008b 0%, #00008b 100%)",
+    "Australia": "linear-gradient(90deg, #00008b 0%, #00008b 70%, #fff 70%, #fff 100%)",
     Austria: "linear-gradient(90deg, #ed2939 0%, #ed2939 33%, #fff 33%, #fff 66%, #ed2939 66%, #ed2939 100%)",
     Azerbaijan: "linear-gradient(90deg, #3f9647 0%, #3f9647 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Bahamas: "linear-gradient(45deg, #1a4686 0%, #1a4686 33%, #ffc72c 33%, #ffc72c 66%, #1a4686 66%, #1a4686 100%)",
@@ -76,11 +165,11 @@ function getFlagGradient(country: string): string {
     "Cabo Verde": "linear-gradient(90deg, #003da5 0%, #003da5 40%, #fff 40%, #fff 45%, #007c5e 45%, #007c5e 100%)",
     Cambodia: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Cameroon: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ce1126 33%, #ce1126 66%, #ffc72c 66%, #ffc72c 100%)",
-    Canada: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Canada": "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     "Central African Republic": "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Chad: "linear-gradient(90deg, #002395 0%, #002395 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
     Chile: "linear-gradient(90deg, #fff 0%, #fff 50%, #ce1126 50%, #ce1126 100%)",
-    China: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "China": "linear-gradient(90deg, #ce1126 0%, #ce1126 80%, #ffde00 80%, #ffde00 100%)",
     Colombia: "linear-gradient(90deg, #ffc72c 0%, #ffc72c 50%, #002395 50%, #002395 100%)",
     Comoros: "linear-gradient(45deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
     "Congo (Brazzaville)": "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
@@ -90,7 +179,7 @@ function getFlagGradient(country: string): string {
     Cuba: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Cyprus: "linear-gradient(90deg, #fff 0%, #fff 50%, #f77f00 50%, #f77f00 100%)",
     "Czech Republic": "linear-gradient(90deg, #fff 0%, #fff 33%, #ce1126 33%, #ce1126 66%, #002395 66%, #002395 100%)",
-    Denmark: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Denmark": "linear-gradient(90deg, #ce1126 0%, #ce1126 70%, #fff 70%, #fff 100%)",
     Djibouti: "linear-gradient(90deg, #6fa6d6 0%, #6fa6d6 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
     Dominica: "linear-gradient(45deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #000 66%, #000 100%)",
     "Dominican Republic": "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
@@ -102,7 +191,7 @@ function getFlagGradient(country: string): string {
     Estonia: "linear-gradient(90deg, #002395 0%, #002395 33%, #000 33%, #000 66%, #fff 66%, #fff 100%)",
     Eswatini: "linear-gradient(90deg, #00008b 0%, #00008b 25%, #ffc72c 25%, #ffc72c 50%, #ce1126 50%, #ce1126 100%)",
     Ethiopia: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #ffc72c 33%, #ffc72c 66%, #007c5e 66%, #007c5e 100%)",
-    Fiji: "linear-gradient(90deg, #6fa6d6 0%, #6fa6d6 100%)",
+    "Fiji": "linear-gradient(90deg, #6fa6d6 0%, #6fa6d6 75%, #fff 75%, #fff 100%)",
     Finland: "linear-gradient(90deg, #fff 0%, #fff 35%, #002395 35%, #002395 65%, #fff 65%, #fff 100%)",
     France: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Gabon: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
@@ -110,7 +199,7 @@ function getFlagGradient(country: string): string {
     Georgia: "linear-gradient(90deg, #fff 0%, #ce1126 100%)",
     Germany: "linear-gradient(90deg, #000 0%, #000 33%, #ce1126 33%, #ce1126 66%, #ffc72c 66%, #ffc72c 100%)",
     Ghana: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #ffc72c 33%, #ffc72c 66%, #007c5e 66%, #007c5e 100%)",
-    Greece: "linear-gradient(90deg, #002395 0%, #002395 100%)",
+    "Greece": "linear-gradient(90deg, #002395 0%, #002395 70%, #fff 70%, #fff 100%)",
     Grenada: "linear-gradient(45deg, #ce1126 0%, #ce1126 33%, #ffc72c 33%, #ffc72c 66%, #007c5e 66%, #007c5e 100%)",
     Guatemala: "linear-gradient(90deg, #6fa6d6 0%, #6fa6d6 33%, #fff 33%, #fff 66%, #6fa6d6 66%, #6fa6d6 100%)",
     Guinea: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #ffc72c 33%, #ffc72c 66%, #007c5e 66%, #007c5e 100%)",
@@ -121,23 +210,23 @@ function getFlagGradient(country: string): string {
     Hungary: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
     Iceland: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     India: "linear-gradient(90deg, #f77f00 0%, #f77f00 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
-    Indonesia: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Indonesia": "linear-gradient(90deg, #ce1126 0%, #ce1126 50%, #fff 50%, #fff 100%)",
     Iran: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Iraq: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #fff 33%, #fff 66%, #000 66%, #000 100%)",
     Ireland: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #fff 33%, #fff 66%, #f77f00 66%, #f77f00 100%)",
-    Israel: "linear-gradient(90deg, #002395 0%, #002395 100%)",
+    "Israel": "linear-gradient(90deg, #fff 0%, #fff 40%, #002395 40%, #002395 60%, #fff 60%, #fff 100%)",
     Italy: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Jamaica: "linear-gradient(45deg, #007c5e 0%, #007c5e 50%, #ffc72c 50%, #ffc72c 100%)",
-    Japan: "linear-gradient(90deg, #fff 0%, #fff 100%)",
+    "Japan": "linear-gradient(90deg, #fff 0%, #fff 70%, #bc002d 70%, #bc002d 100%)",
     Jordan: "linear-gradient(90deg, #000 0%, #000 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
-    Kazakhstan: "linear-gradient(90deg, #00afca 0%, #00afca 100%)",
+    "Kazakhstan": "linear-gradient(90deg, #00afca 0%, #00afca 75%, #f7d116 75%, #f7d116 100%)",
     Kenya: "linear-gradient(90deg, #000 0%, #000 33%, #ce1126 33%, #ce1126 66%, #fff 66%, #fff 100%)",
     Kiribati: "linear-gradient(90deg, #ce1126 0%, #ce1126 50%, #ffc72c 50%, #ffc72c 100%)",
     Kuwait: "linear-gradient(90deg, #000 0%, #000 25%, #fff 25%, #fff 50%, #007c5e 50%, #007c5e 100%)",
-    Kyrgyzstan: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Kyrgyzstan": "linear-gradient(90deg, #ce1126 0%, #ce1126 70%, #ffde00 70%, #ffde00 100%)",
     Laos: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #002395 33%, #002395 66%, #fff 66%, #fff 100%)",
-    Latvia: "linear-gradient(90deg, #9d1d34 0%, #9d1d34 100%)",
-    Lebanon: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Latvia": "linear-gradient(90deg, #9d1d34 0%, #9d1d34 70%, #fff 70%, #fff 100%)",
+    "Lebanon": "linear-gradient(90deg, #ce1126 0%, #ce1126 25%, #fff 25%, #fff 75%, #007a3d 75%, #007a3d 100%)",
     Lesotho: "linear-gradient(45deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
     Liberia: "linear-gradient(90deg, #ce1126 0%, #ce1126 11%, #fff 11%, #fff 22%, #002395 22%, #002395 33%, #fff 33%, #fff 44%, #ce1126 44%, #ce1126 100%)",
     Libya: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #000 33%, #000 66%, #007c5e 66%, #007c5e 100%)",
@@ -147,19 +236,19 @@ function getFlagGradient(country: string): string {
     Madagascar: "linear-gradient(90deg, #fff 0%, #fff 33%, #ce1126 33%, #ce1126 66%, #007c5e 66%, #007c5e 100%)",
     Malawi: "linear-gradient(90deg, #000 0%, #000 33%, #ce1126 33%, #ce1126 66%, #007c5e 66%, #007c5e 100%)",
     Malaysia: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
-    Maldives: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Maldives": "linear-gradient(90deg, #ce1126 0%, #ce1126 60%, #007e3a 60%, #007e3a 100%)",
     Mali: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
     Malta: "linear-gradient(90deg, #fff 0%, #fff 33%, #ce1126 33%, #ce1126 66%, #ce1126 66%, #ce1126 100%)",
     "Marshall Islands": "linear-gradient(45deg, #002395 0%, #002395 50%, #fff 50%, #fff 100%)",
     Mauritania: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
     Mauritius: "linear-gradient(90deg, #ce1126 0%, #ce1126 25%, #002395 25%, #002395 50%, #ffc72c 50%, #ffc72c 100%)",
     Mexico: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
-    Micronesia: "linear-gradient(45deg, #002395 0%, #002395 100%)",
+    "Micronesia": "linear-gradient(45deg, #75b2dd 0%, #75b2dd 70%, #fff 70%, #fff 100%)",
     Moldova: "linear-gradient(90deg, #002395 0%, #002395 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
-    Monaco: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Monaco": "linear-gradient(90deg, #ce1126 0%, #ce1126 50%, #fff 50%, #fff 100%)",
     Mongolia: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #002395 33%, #002395 66%, #ce1126 66%, #ce1126 100%)",
-    Montenegro: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
-    Morocco: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Montenegro": "linear-gradient(90deg, #ce1126 0%, #ce1126 75%, #d4af37 75%, #d4af37 100%)",
+    "Morocco": "linear-gradient(90deg, #ce1126 0%, #ce1126 75%, #006233 75%, #006233 100%)",
     Mozambique: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #000 33%, #000 66%, #ffc72c 66%, #ffc72c 100%)",
     Myanmar: "linear-gradient(90deg, #ffc72c 0%, #ffc72c 33%, #007c5e 33%, #007c5e 66%, #ce1126 66%, #ce1126 100%)",
     Namibia: "linear-gradient(45deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
@@ -170,38 +259,38 @@ function getFlagGradient(country: string): string {
     "Paesi Bassi": "linear-gradient(90deg, #ae1c28 0%, #ae1c28 33%, #fff 33%, #fff 66%, #21468b 66%, #21468b 100%)",
     Holland: "linear-gradient(90deg, #ae1c28 0%, #ae1c28 33%, #fff 33%, #fff 66%, #21468b 66%, #21468b 100%)",
     Nederland: "linear-gradient(90deg, #ae1c28 0%, #ae1c28 33%, #fff 33%, #fff 66%, #21468b 66%, #21468b 100%)",
-    "New Zealand": "linear-gradient(90deg, #002395 0%, #002395 100%)",
+    "New Zealand": "linear-gradient(90deg, #002395 0%, #002395 70%, #fff 70%, #fff 85%, #ce1126 85%, #ce1126 100%)",
     Nicaragua: "linear-gradient(90deg, #002395 0%, #002395 25%, #fff 25%, #fff 50%, #002395 50%, #002395 100%)",
     Niger: "linear-gradient(90deg, #f77f00 0%, #f77f00 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
     Nigeria: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
-    "North Macedonia": "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
-    Norway: "linear-gradient(90deg, #002395 0%, #002395 100%)",
+    "North Macedonia": "linear-gradient(90deg, #ce1126 0%, #ce1126 65%, #ffd100 65%, #ffd100 100%)",
+    "Norway": "linear-gradient(90deg, #ba0c2f 0%, #ba0c2f 40%, #fff 40%, #fff 60%, #00205b 60%, #00205b 100%)",
     Oman: "linear-gradient(90deg, #fff 0%, #fff 25%, #ce1126 25%, #ce1126 100%)",
     Pakistan: "linear-gradient(90deg, #00401a 0%, #00401a 50%, #fff 50%, #fff 100%)",
-    Palau: "linear-gradient(45deg, #002395 0%, #002395 100%)",
+    "Palau": "linear-gradient(45deg, #4aadd6 0%, #4aadd6 70%, #ffde00 70%, #ffde00 100%)",
     Panama: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     "Papua New Guinea": "linear-gradient(45deg, #000 0%, #000 25%, #ce1126 25%, #ce1126 50%, #ffc72c 50%, #ffc72c 100%)",
     Paraguay: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #fff 33%, #fff 66%, #002395 66%, #002395 100%)",
     Peru: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Philippines: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
-    Poland: "linear-gradient(90deg, #fff 0%, #fff 100%)",
+    "Poland": "linear-gradient(90deg, #fff 0%, #fff 50%, #dc143c 50%, #dc143c 100%)",
     Portugal: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ce1126 33%, #ce1126 66%, #ffc72c 66%, #ffc72c 100%)",
-    Qatar: "linear-gradient(90deg, #8d1b3d 0%, #8d1b3d 100%)",
+    "Qatar": "linear-gradient(90deg, #8d1b3d 0%, #8d1b3d 70%, #fff 70%, #fff 100%)",
     Romania: "linear-gradient(90deg, #002395 0%, #002395 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
     Russia: "linear-gradient(90deg, #fff 0%, #fff 33%, #002395 33%, #002395 66%, #ce1126 66%, #ce1126 100%)",
     Rwanda: "linear-gradient(45deg, #002395 0%, #002395 33%, #ffc72c 33%, #ffc72c 66%, #007c5e 66%, #007c5e 100%)",
     "Saint Kitts and Nevis": "linear-gradient(45deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #000 66%, #000 100%)",
     "Saint Lucia": "linear-gradient(45deg, #6fa6d6 0%, #6fa6d6 33%, #fff 33%, #fff 66%, #ffc72c 66%, #ffc72c 100%)",
     "Saint Vincent and the Grenadines": "linear-gradient(45deg, #002395 0%, #002395 33%, #ffc72c 33%, #ffc72c 66%, #007c5e 66%, #007c5e 100%)",
-    Samoa: "linear-gradient(45deg, #ce1126 0%, #ce1126 100%)",
+    "Samoa": "linear-gradient(45deg, #ce1126 0%, #ce1126 70%, #002b7f 70%, #002b7f 100%)",
     "San Marino": "linear-gradient(90deg, #fff 0%, #fff 33%, #6fa6d6 33%, #6fa6d6 66%, #6fa6d6 66%, #6fa6d6 100%)",
     "Sao Tome and Principe": "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #000 66%, #000 100%)",
-    "Saudi Arabia": "linear-gradient(90deg, #007c5e 0%, #007c5e 100%)",
+    "Saudi Arabia": "linear-gradient(90deg, #006c35 0%, #006c35 75%, #fff 75%, #fff 100%)",
     Senegal: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
     Serbia: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Seychelles: "linear-gradient(90deg, #002395 0%, #002395 33%, #ffc72c 33%, #ffc72c 66%, #fff 66%, #fff 100%)",
     "Sierra Leone": "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #fff 33%, #fff 66%, #002395 66%, #002395 100%)",
-    Singapore: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Singapore": "linear-gradient(90deg, #ef3340 0%, #ef3340 50%, #fff 50%, #fff 100%)",
     Slovakia: "linear-gradient(90deg, #fff 0%, #fff 33%, #ce1126 33%, #ce1126 66%, #002395 66%, #002395 100%)",
     Slovenia: "linear-gradient(90deg, #fff 0%, #fff 33%, #002395 33%, #002395 66%, #ce1126 66%, #ce1126 100%)",
     "Solomon Islands": "linear-gradient(45deg, #002395 0%, #002395 50%, #ffc72c 50%, #ffc72c 100%)",
@@ -209,13 +298,13 @@ function getFlagGradient(country: string): string {
     "South Africa": "linear-gradient(45deg, #007c5e 0%, #007c5e 20%, #fff 20%, #fff 40%, #000 40%, #000 60%, #ffc72c 60%, #ffc72c 80%, #ce1126 80%, #ce1126 100%)",
     "South Sudan": "linear-gradient(90deg, #000 0%, #000 25%, #fff 25%, #fff 50%, #ce1126 50%, #ce1126 100%)",
     Spain: "linear-gradient(90deg, #ce1126 0%, #ce1126 25%, #ffc72c 25%, #ffc72c 75%, #ce1126 75%, #ce1126 100%)",
-    "Sri Lanka": "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Sri Lanka": "linear-gradient(90deg, #8d153a 0%, #8d153a 70%, #ffb81c 70%, #ffb81c 100%)",
     Sudan: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #fff 33%, #fff 66%, #000 66%, #000 100%)",
     Suriname: "linear-gradient(90deg, #007c5e 0%, #007c5e 20%, #ffc72c 20%, #ffc72c 80%, #007c5e 80%, #007c5e 100%)",
-    Sweden: "linear-gradient(90deg, #002395 0%, #002395 100%)",
-    Switzerland: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Sweden": "linear-gradient(90deg, #006aa7 0%, #006aa7 65%, #fecc00 65%, #fecc00 100%)",
+    "Switzerland": "linear-gradient(90deg, #d52b1e 0%, #d52b1e 70%, #fff 70%, #fff 100%)",
     Syria: "linear-gradient(90deg, #000 0%, #000 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
-    Taiwan: "linear-gradient(90deg, #000080 0%, #000080 100%)",
+    "Taiwan": "linear-gradient(90deg, #fe0000 0%, #fe0000 60%, #000095 60%, #000095 85%, #fff 85%, #fff 100%)",
     Tajikistan: "linear-gradient(90deg, #ce1126 0%, #ce1126 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
     Tanzania: "linear-gradient(45deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #000 66%, #000 100%)",
     Thailand: "linear-gradient(90deg, #ce1126 0%, #ce1126 20%, #fff 20%, #fff 40%, #002395 40%, #002395 60%, #fff 60%, #fff 80%, #ce1126 80%, #ce1126 100%)",
@@ -223,26 +312,30 @@ function getFlagGradient(country: string): string {
     Togo: "linear-gradient(90deg, #007c5e 0%, #007c5e 33%, #ffc72c 33%, #ffc72c 66%, #ce1126 66%, #ce1126 100%)",
     Tonga: "linear-gradient(90deg, #fff 0%, #fff 50%, #ce1126 50%, #ce1126 100%)",
     "Trinidad and Tobago": "linear-gradient(45deg, #ce1126 0%, #ce1126 50%, #fff 50%, #fff 100%)",
-    Tunisia: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
-    Turkey: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
-    Turkmenistan: "linear-gradient(90deg, #007c5e 0%, #007c5e 100%)",
-    Tuvalu: "linear-gradient(90deg, #002395 0%, #002395 100%)",
+    "Tunisia": "linear-gradient(90deg, #e70013 0%, #e70013 70%, #fff 70%, #fff 100%)",
+    "Turkey": "linear-gradient(90deg, #e30a17 0%, #e30a17 70%, #fff 70%, #fff 100%)",
+    "Turkmenistan": "linear-gradient(90deg, #1c8a42 0%, #1c8a42 70%, #b22234 70%, #b22234 100%)",
+    "Tuvalu": "linear-gradient(90deg, #5b92e5 0%, #5b92e5 70%, #ffde00 70%, #ffde00 100%)",
     Uganda: "linear-gradient(90deg, #000 0%, #000 15%, #ffc72c 15%, #ffc72c 45%, #000 45%, #000 100%)",
     Ukraine: "linear-gradient(90deg, #002395 0%, #002395 50%, #ffc72c 50%, #ffc72c 100%)",
     "United Arab Emirates": "linear-gradient(90deg, #007c5e 0%, #007c5e 50%, #fff 50%, #fff 100%)",
-    "United Kingdom": "linear-gradient(90deg, #012169 0%, #012169 100%)",
-    "United States": "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "United Kingdom": "linear-gradient(90deg, #012169 0%, #012169 60%, #fff 60%, #fff 75%, #c8102e 75%, #c8102e 100%)",
+    "United States": "linear-gradient(90deg, #b22234 0%, #b22234 33%, #fff 33%, #fff 66%, #3c3b6e 66%, #3c3b6e 100%)",
     Uruguay: "linear-gradient(90deg, #fff 0%, #fff 50%, #002395 50%, #002395 100%)",
     Uzbekistan: "linear-gradient(90deg, #002395 0%, #002395 33%, #fff 33%, #fff 66%, #007c5e 66%, #007c5e 100%)",
     Vanuatu: "linear-gradient(45deg, #007c5e 0%, #007c5e 50%, #ffc72c 50%, #ffc72c 100%)",
-    "Vatican City": "linear-gradient(90deg, #ffc72c 0%, #ffc72c 100%)",
+    "Vatican City": "linear-gradient(90deg, #ffcd00 0%, #ffcd00 50%, #fff 50%, #fff 100%)",
     Venezuela: "linear-gradient(90deg, #ffc72c 0%, #ffc72c 50%, #002395 50%, #002395 75%, #ce1126 75%, #ce1126 100%)",
-    Vietnam: "linear-gradient(90deg, #ce1126 0%, #ce1126 100%)",
+    "Vietnam": "linear-gradient(90deg, #da251d 0%, #da251d 75%, #ffde00 75%, #ffde00 100%)",
     Yemen: "linear-gradient(90deg, #000 0%, #000 33%, #fff 33%, #fff 66%, #ce1126 66%, #ce1126 100%)",
     Zambia: "linear-gradient(90deg, #007c5e 0%, #007c5e 20%, #000 20%, #000 40%, #ce1126 40%, #ce1126 60%, #f3d857 60%, #f3d857 100%)",
     Zimbabwe: "linear-gradient(45deg, #007c5e 0%, #007c5e 20%, #ffc72c 20%, #ffc72c 40%, #ce1126 40%, #ce1126 60%, #000 60%, #000 80%, #fff 80%, #fff 100%)",
   };
-  return gradients[country] || "linear-gradient(135deg, #CCCCCC 0%, #CCCCCC 50%, #FFFFFF 50%, #FFFFFF 100%)";
+  return (
+    gradients[canonicalCountry] ||
+    gradients[country] ||
+    "linear-gradient(135deg, #CCCCCC 0%, #CCCCCC 50%, #FFFFFF 50%, #FFFFFF 100%)"
+  );
 }
 
 // Reverse geocode coordinates to get country and address
@@ -265,22 +358,27 @@ async function getLocationFromCoordinates(
     const data = await response.json();
     const address = data.address || {};
 
-    const city = address.city || address.town || "Unknown";
-    const cap = address.postcode || "—";
+    const city = address.city || address.town || "Sconosciuta";
+    const cap = address.postcode || "-";
 
     return {
-      country: address.country || "Unknown Country",
+      country: toItalianCountryName(address.country || "Paese sconosciuto"),
       address: data.address?.road
         ? `${data.address.road}${
             data.address.house_number ? " " + data.address.house_number : ""
           }, ${city}`
-        : city,
+        : "Indirizzo sconosciuto",
       city,
       cap,
     };
   } catch (err) {
     console.error("Geocoding error:", err);
-    return { country: "Unknown Country", address: "Unknown Address", city: "Unknown", cap: "—" };
+    return {
+      country: "Paese sconosciuto",
+      address: "Indirizzo sconosciuto",
+      city: "Sconosciuta",
+      cap: "-",
+    };
   }
 }
 
@@ -324,10 +422,10 @@ export default function StickersPage() {
           );
           return {
             ...sticker,
-            country: location.country || "Unknown Country",
-            address: location.address || "Unknown Address",
-            city: location.city || "Unknown",
-            cap: location.cap || "—",
+            country: toItalianCountryName(location.country || "Paese sconosciuto"),
+            address: location.address || "Indirizzo sconosciuto",
+            city: location.city || "Sconosciuta",
+            cap: location.cap || "-",
             status: "pending" as const, // Default status - can be updated from DB if available
             upvotes: sticker.upvotes || 0,
             downvotes: sticker.downvotes || 0,
@@ -341,7 +439,7 @@ export default function StickersPage() {
       const grouped: GroupedStickers = {};
 
       stickersWithLocation.forEach((sticker) => {
-        const country = sticker.country || "Unknown Country";
+        const country = sticker.country || "Paese sconosciuto";
         if (!grouped[country]) {
           grouped[country] = [];
         }
@@ -358,7 +456,9 @@ export default function StickersPage() {
       });
 
       // Sort countries alphabetically
-      const sortedCountries = Object.keys(grouped).sort();
+      const sortedCountries = Object.keys(grouped).sort((a, b) =>
+        a.localeCompare(b, "it")
+      );
       const finalGrouped: GroupedStickers = {};
       sortedCountries.forEach((country) => {
         finalGrouped[country] = grouped[country];
@@ -646,6 +746,7 @@ export default function StickersPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {Object.entries(groupedStickers).map(([country, countryStickers]) => {
             const isExpanded = expandedCountries[country] === true; // Default to collapsed
+            const countryLabel = toItalianCountryName(country);
             
             return (
               <div key={country} className="mb-6">
@@ -658,10 +759,10 @@ export default function StickersPage() {
                     }))
                   }
                   className="w-full relative flex items-center justify-between p-4 rounded-lg transition mb-3 shadow-lg"
-                  style={{ background: getFlagGradient(country) }}
+                  style={{ background: getFlagGradient(countryLabel) }}
                 >
                   <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 relative z-10">
-                    {country}
+                    {countryLabel}
                     <span className="text-xs font-normal text-gray-600 bg-white px-2 py-1 rounded-full">
                       {countryStickers.length}
                     </span>

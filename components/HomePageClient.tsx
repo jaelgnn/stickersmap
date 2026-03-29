@@ -285,8 +285,12 @@ export default function HomePageClient() {
             <p><strong>Coordinate:</strong> {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}</p>
           </div>
           <div className="mt-4 flex gap-2">
-            <button className="flex-1 rounded-2xl bg-green-600 py-3 text-white shadow">Confermo</button>
-            <button className="flex-1 rounded-2xl bg-red-600 py-3 text-white shadow">Rimosso</button>
+            <button className="flex-1 rounded-lg border border-green-300/42 bg-green-500/34 py-3 font-semibold text-green-950 shadow-[0_8px_18px_rgba(15,23,42,0.14)] backdrop-blur-md transition hover:bg-green-500/44 active:scale-95">
+              Confermo
+            </button>
+            <button className="flex-1 rounded-lg border border-red-300/42 bg-red-500/34 py-3 font-semibold text-red-950 shadow-[0_8px_18px_rgba(15,23,42,0.14)] backdrop-blur-md transition hover:bg-red-500/44 active:scale-95">
+              Rimosso
+            </button>
           </div>
           <button onClick={() => setSelected(null)} className="mt-3 w-full rounded-2xl bg-gray-100 py-3 text-sm text-gray-700">
             Chiudi

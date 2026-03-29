@@ -41,6 +41,8 @@ type SessionStatusUpdate = {
   at: string;
 };
 
+const ADMIN_PASSWORD = "Apedalate";
+
 // Function to get flag colors gradient for glass effect
 function getFlagGradient(country: string): string {
   const gradients: { [key: string]: string } = {
@@ -294,6 +296,8 @@ export default function StickersPage() {
   const [sessionStatusUpdates, setSessionStatusUpdates] = useState<
     Record<string, SessionStatusUpdate | undefined>
   >({});
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -482,6 +486,79 @@ export default function StickersPage() {
     );
     // Navigate to home page
     router.push("/");
+  }
+
+  async function handleDeleteSticker(sticker: StickerWithLocation) {
+    if (isDeleting) return;
+
+    if (!isAdminAuthenticated) {
+      const password = window.prompt("Inserisci la password admin per eliminare lo sticker:");
+      if (password === null) return;
+      if (password !== ADMIN_PASSWORD) {
+        alert("Password admin non valida.");
+        return;
+      }
+      setIsAdminAuthenticated(true);
+    }
+
+    const confirmed = window.confirm(
+      "Vuoi davvero eliminare questo sticker? Questa azione non si puo annullare."
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const { error: dbError } = await supabase
+        .from("sticker_reports")
+        .delete()
+        .eq("id", sticker.id);
+
+      if (dbError) {
+        alert(`Errore durante eliminazione: ${dbError.message}`);
+        return;
+      }
+
+      const { error: storageError } = await supabase.storage
+        .from("stickers")
+        .remove([sticker.image_path]);
+
+      if (storageError) {
+        console.error("Storage delete error:", storageError);
+        alert(
+          "Sticker eliminato dal database, ma non e stato possibile eliminare l'immagine dallo storage."
+        );
+      } else {
+        alert("Sticker eliminato.");
+      }
+
+      setStickers((prev) => prev.filter((s) => s.id !== sticker.id));
+      setGroupedStickers((prev) => {
+        const updated: GroupedStickers = {};
+        Object.entries(prev).forEach(([country, countryStickers]) => {
+          const filtered = countryStickers.filter((s) => s.id !== sticker.id);
+          if (filtered.length > 0) {
+            updated[country] = filtered;
+          }
+        });
+        return updated;
+      });
+      setSessionVotes((prev) => {
+        const updated = { ...prev };
+        delete updated[sticker.id];
+        return updated;
+      });
+      setSessionStatusUpdates((prev) => {
+        const updated = { ...prev };
+        delete updated[sticker.id];
+        return updated;
+      });
+      setSelectedSticker(null);
+    } catch (err) {
+      console.error("Delete sticker error:", err);
+      alert("Errore imprevisto durante l'eliminazione.");
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   function getStatusColor(status: string) {
@@ -773,6 +850,17 @@ export default function StickersPage() {
                       </p>
                     </div>
                   )}
+
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      onClick={() => handleDeleteSticker(selectedSticker)}
+                      disabled={isDeleting}
+                      className="text-[10px] font-semibold uppercase tracking-wide text-red-600 transition hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      title="Elimina sticker (solo admin)"
+                    >
+                      {isDeleting ? "Elimino..." : "Elimina"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Details Grid */}

@@ -41,8 +41,6 @@ type SessionStatusUpdate = {
   at: string;
 };
 
-const ADMIN_PASSWORD = "Apedalate";
-
 // Function to get flag colors gradient for glass effect
 function getFlagGradient(country: string): string {
   const gradients: { [key: string]: string } = {
@@ -296,7 +294,6 @@ export default function StickersPage() {
   const [sessionStatusUpdates, setSessionStatusUpdates] = useState<
     Record<string, SessionStatusUpdate | undefined>
   >({});
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
 
@@ -491,15 +488,8 @@ export default function StickersPage() {
   async function handleDeleteSticker(sticker: StickerWithLocation) {
     if (isDeleting) return;
 
-    if (!isAdminAuthenticated) {
-      const password = window.prompt("Inserisci la password admin per eliminare lo sticker:");
-      if (password === null) return;
-      if (password !== ADMIN_PASSWORD) {
-        alert("Password admin non valida.");
-        return;
-      }
-      setIsAdminAuthenticated(true);
-    }
+    const password = window.prompt("Inserisci la password admin per eliminare lo sticker:");
+    if (password === null) return;
 
     const confirmed = window.confirm(
       "Vuoi davvero eliminare questo sticker? Questa azione non si puo annullare."
@@ -508,22 +498,29 @@ export default function StickersPage() {
 
     setIsDeleting(true);
     try {
-      const { error: dbError } = await supabase
-        .from("sticker_reports")
-        .delete()
-        .eq("id", sticker.id);
+      const response = await fetch("/api/admin/delete-sticker", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          stickerId: sticker.id,
+          imagePath: sticker.image_path,
+          password,
+        }),
+      });
 
-      if (dbError) {
-        alert(`Errore durante eliminazione: ${dbError.message}`);
+      const result = (await response.json().catch(() => null)) as
+        | { error?: string; storageError?: string }
+        | null;
+
+      if (!response.ok) {
+        alert(result?.error || "Errore durante eliminazione.");
         return;
       }
 
-      const { error: storageError } = await supabase.storage
-        .from("stickers")
-        .remove([sticker.image_path]);
-
-      if (storageError) {
-        console.error("Storage delete error:", storageError);
+      if (result?.storageError) {
+        console.error("Storage delete error:", result.storageError);
         alert(
           "Sticker eliminato dal database, ma non e stato possibile eliminare l'immagine dallo storage."
         );
@@ -553,6 +550,7 @@ export default function StickersPage() {
         return updated;
       });
       setSelectedSticker(null);
+      await loadStickers();
     } catch (err) {
       console.error("Delete sticker error:", err);
       alert("Errore imprevisto durante l'eliminazione.");

@@ -166,7 +166,7 @@ export default function HomePageClient() {
       </div>
 
       <div className="flex justify-start items-center h-screen w-screen pt-4">
-        <div className="ml-6 mr-6 w-[calc(100vw-3rem)] h-3/4 rounded-2xl overflow-hidden shadow-2xl relative">
+        <div className="ml-6 mr-6 mt-[calc(6.25vh-1rem)] h-[calc(87.5vh-2rem)] w-[calc(100vw-3rem)] rounded-2xl overflow-hidden shadow-2xl relative">
           <Map
             draftPosition={draftPosition}
             reports={reports}

@@ -230,49 +230,73 @@ export default function HomePageClient() {
       )}
 
       {file && (
-        <div className="fixed inset-x-0 bottom-0 z-[3000] animate-in slide-in-from-bottom duration-300 rounded-t-3xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-          <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-gray-300" />
-          <div className="mb-4 rounded-2xl overflow-hidden bg-gray-100">
-            <img src={previewUrl || ""} alt="Preview" className="w-full h-auto max-h-[50vh] object-contain" />
-          </div>
-          <div className="space-y-3 mb-6">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Nome File</p>
-              <p className="font-semibold text-gray-900">{file.name}</p>
+        <div className="fixed inset-x-0 bottom-0 z-[3000] animate-in slide-in-from-bottom duration-300 rounded-t-3xl bg-white shadow-2xl">
+          {isChoosingLocationManually ? (
+            <div className="p-4">
+              <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300" />
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm text-amber-900">
+                  Clicca sulla mappa per selezionare la posizione.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setFile(null);
+                  setDate(null);
+                  setDraftPosition(null);
+                  setPreviewUrl(null);
+                }}
+                className="mt-3 w-full rounded-2xl bg-red-600 py-3 text-white font-semibold shadow-lg transition active:scale-95 hover:bg-red-700"
+              >
+                Annulla
+              </button>
             </div>
-            {date && (
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Data Cattura</p>
-                <p className="text-gray-700">{new Date(date).toLocaleString()}</p>
+          ) : (
+            <div className="max-h-[90vh] overflow-y-auto p-6">
+              <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-gray-300" />
+              <div className="mb-4 rounded-2xl overflow-hidden bg-gray-100">
+                <img src={previewUrl || ""} alt="Preview" className="w-full h-auto max-h-[50vh] object-contain" />
               </div>
-            )}
-            {draftPosition && (
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Coordinate</p>
-                <p className="text-gray-700">{draftPosition.lat.toFixed(5)}, {draftPosition.lng.toFixed(5)}</p>
+              <div className="space-y-3 mb-6">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Nome File</p>
+                  <p className="font-semibold text-gray-900">{file.name}</p>
+                </div>
+                {date && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Data Cattura</p>
+                    <p className="text-gray-700">{new Date(date).toLocaleString()}</p>
+                  </div>
+                )}
+                {draftPosition && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Coordinate</p>
+                    <p className="text-gray-700">{draftPosition.lat.toFixed(5)}, {draftPosition.lng.toFixed(5)}</p>
+                  </div>
+                )}
               </div>
-            )}
-            {!draftPosition && (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
-                <p className="text-sm text-amber-900">📍 Clicca sulla mappa per selezionare la posizione</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={save}
+                  disabled={!draftPosition || isSaving}
+                  className="flex-1 rounded-2xl bg-green-600 py-4 text-white font-semibold shadow-lg transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700"
+                >
+                  {isSaving ? "Salvataggio..." : "Salva"}
+                </button>
+                <button
+                  onClick={() => {
+                    setFile(null);
+                    setDate(null);
+                    setDraftPosition(null);
+                    setPreviewUrl(null);
+                  }}
+                  className="flex-1 rounded-2xl bg-red-600 py-4 text-white font-semibold shadow-lg transition active:scale-95 hover:bg-red-700"
+                >
+                  Annulla
+                </button>
               </div>
-            )}
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={save}
-              disabled={!draftPosition || isSaving}
-              className="flex-1 rounded-2xl bg-green-600 py-4 text-white font-semibold shadow-lg transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700"
-            >
-              {isSaving ? "Salvataggio..." : "✓ Salva"}
-            </button>
-            <button
-              onClick={() => { setFile(null); setDate(null); setDraftPosition(null); setPreviewUrl(null); }}
-              className="flex-1 rounded-2xl bg-red-600 py-4 text-white font-semibold shadow-lg transition active:scale-95 hover:bg-red-700"
-            >
-              ✕ Annulla
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       )}
 

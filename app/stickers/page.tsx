@@ -12,6 +12,7 @@ type StickerReport = {
   lat: number;
   lng: number;
   captured_at: string | null;
+  uploaded_at?: string | null;
   upvotes?: number;
   downvotes?: number;
   uploaded_by?: string;
@@ -343,6 +344,38 @@ async function getLocationFromCoordinates(
   lat: number,
   lng: number
 ): Promise<{ country?: string; address?: string; city?: string; cap?: string }> {
+  const pickCity = (address: Record<string, string | undefined>) =>
+    address.city ||
+    address.town ||
+    address.village ||
+    address.municipality ||
+    address.hamlet ||
+    address.county;
+
+  const lookupCityByCap = async (cap: string, countryCode?: string) => {
+    const query = new URLSearchParams({
+      format: "jsonv2",
+      postalcode: cap,
+      addressdetails: "1",
+      limit: "1",
+    });
+    if (countryCode) query.set("countrycodes", countryCode);
+
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?${query.toString()}`,
+      {
+        headers: {
+          "Accept-Language": "it",
+        },
+      }
+    );
+
+    if (!response.ok) return null;
+    const results = await response.json();
+    if (!Array.isArray(results) || !results.length) return null;
+    return pickCity(results[0]?.address || {}) || null;
+  };
+
   try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
@@ -358,8 +391,12 @@ async function getLocationFromCoordinates(
     const data = await response.json();
     const address = data.address || {};
 
-    const city = address.city || address.town || "Sconosciuta";
     const cap = address.postcode || "-";
+    const cityFromAddress = pickCity(address);
+    const city =
+      cityFromAddress ||
+      (cap !== "-" ? await lookupCityByCap(cap, address.country_code) : null) ||
+      "Sconosciuta";
 
     return {
       country: toItalianCountryName(address.country || "Paese sconosciuto"),
@@ -449,8 +486,10 @@ export default function StickersPage() {
       // Sort each country's stickers chronologically
       Object.keys(grouped).forEach((country) => {
         grouped[country].sort((a, b) => {
-          const dateA = a.captured_at ? new Date(a.captured_at).getTime() : 0;
-          const dateB = b.captured_at ? new Date(b.captured_at).getTime() : 0;
+          const stickerDateA = getStickerDate(a);
+          const stickerDateB = getStickerDate(b);
+          const dateA = stickerDateA ? new Date(stickerDateA).getTime() : 0;
+          const dateB = stickerDateB ? new Date(stickerDateB).getTime() : 0;
           return dateB - dateA; // Most recent first
         });
       });
@@ -847,8 +886,8 @@ export default function StickersPage() {
                           </div>
 
                           <p className="text-xs text-gray-500 mt-1">
-                            {sticker.captured_at
-                              ? new Date(sticker.captured_at).toLocaleDateString(
+                            {getStickerDate(sticker)
+                              ? new Date(getStickerDate(sticker) as string).toLocaleDateString(
                                   "it-IT",
                                   {
                                     year: "2-digit",
@@ -970,8 +1009,8 @@ export default function StickersPage() {
                       Data e Ora
                     </p>
                     <p className="text-sm text-gray-900">
-                      {selectedSticker.captured_at
-                        ? new Date(selectedSticker.captured_at).toLocaleDateString(
+                      {getStickerDate(selectedSticker)
+                        ? new Date(getStickerDate(selectedSticker) as string).toLocaleDateString(
                             "it-IT",
                             {
                               weekday: "long",
@@ -982,9 +1021,9 @@ export default function StickersPage() {
                           )
                         : "Data sconosciuta"}
                     </p>
-                    {selectedSticker.captured_at && (
+                    {getStickerDate(selectedSticker) && (
                       <p className="text-xs text-gray-600 mt-1">
-                        {new Date(selectedSticker.captured_at).toLocaleTimeString(
+                        {new Date(getStickerDate(selectedSticker) as string).toLocaleTimeString(
                           "it-IT",
                           {
                             hour: "2-digit",
@@ -1059,4 +1098,8 @@ export default function StickersPage() {
       )}
     </main>
   );
+}
+
+function getStickerDate(sticker: StickerReport) {
+  return sticker.captured_at || sticker.uploaded_at || null;
 }

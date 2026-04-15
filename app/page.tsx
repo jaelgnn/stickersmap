@@ -23,7 +23,15 @@ type StickerReport = {
   lat: number;
   lng: number;
   captured_at: string | null;
+  uploaded_at?: string | null;
+  upvotes?: number;
+  downvotes?: number;
+  last_status?: "seen" | "removed" | null;
+  last_status_at?: string | null;
 };
+
+type VoteChoice = "upvote" | "downvote" | null;
+type StickerStatus = "seen" | "removed";
 
 export default function HomePageClient() {
   const [supabase, setSupabase] = useState<any>(null);
@@ -36,6 +44,9 @@ export default function HomePageClient() {
   const [username, setUsername] = useState<string>("");
   const [showNameForm, setShowNameForm] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [sessionVotes, setSessionVotes] = useState<Record<string, VoteChoice>>(
+    {}
+  );
 
   useEffect(() => {
     const init = async () => {
@@ -110,6 +121,8 @@ export default function HomePageClient() {
       return;
     }
 
+    const fallbackCapturedAt = date ?? new Date().toISOString();
+
     setIsSaving(true);
     try {
       const extension = file.name.split(".").pop() || "jpg";
@@ -128,7 +141,7 @@ export default function HomePageClient() {
         image_path: name,
         lat: draftPosition.lat,
         lng: draftPosition.lng,
-        captured_at: date,
+        captured_at: fallbackCapturedAt,
         uploaded_by: username.trim(),
       });
 
@@ -153,6 +166,73 @@ export default function HomePageClient() {
   function getUrl(path: string) {
     if (!supabase) return "";
     return supabase.storage.from("stickers").getPublicUrl(path).data.publicUrl;
+  }
+
+  function getStickerDate(sticker: StickerReport) {
+    return sticker.captured_at || sticker.uploaded_at || null;
+  }
+
+  async function handleVote(
+    stickerId: string,
+    voteType: "upvote" | "downvote"
+  ) {
+    if (!supabase || !selected || selected.id !== stickerId) return;
+
+    try {
+      const currentChoice = sessionVotes[stickerId] ?? null;
+      const nextChoice: VoteChoice =
+        currentChoice === voteType ? null : voteType;
+      const nowIso = new Date().toISOString();
+      const nextStatus: StickerStatus | null =
+        nextChoice === "upvote"
+          ? "seen"
+          : nextChoice === "downvote"
+          ? "removed"
+          : null;
+
+      let upvotes = selected.upvotes || 0;
+      let downvotes = selected.downvotes || 0;
+
+      if (currentChoice === "upvote") upvotes = Math.max(0, upvotes - 1);
+      if (currentChoice === "downvote") downvotes = Math.max(0, downvotes - 1);
+
+      if (nextChoice === "upvote") upvotes += 1;
+      if (nextChoice === "downvote") downvotes += 1;
+
+      const updatedSticker: StickerReport = {
+        ...selected,
+        upvotes,
+        downvotes,
+        last_status: nextStatus ?? selected.last_status ?? null,
+        last_status_at: nextStatus ? nowIso : selected.last_status_at ?? null,
+      };
+
+      setSessionVotes((prev) => ({
+        ...prev,
+        [stickerId]: nextChoice,
+      }));
+
+      setSelected(updatedSticker);
+      setReports((prev) =>
+        prev.map((s) => (s.id === stickerId ? updatedSticker : s))
+      );
+
+      if (nextStatus) {
+        const { error: updateError } = await supabase
+          .from("sticker_reports")
+          .update({
+            last_status: nextStatus,
+            last_status_at: nowIso,
+          })
+          .eq("id", stickerId);
+
+        if (updateError) {
+          console.error("Status update error:", updateError);
+        }
+      }
+    } catch (err) {
+      console.error("Vote error:", err);
+    }
   }
 
   const isChoosingLocationManually = !!file && !draftPosition;
@@ -305,16 +385,38 @@ export default function HomePageClient() {
           <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300" />
           <img src={getUrl(selected.image_path)} alt="Sticker" className="max-h-[40vh] w-full rounded-2xl object-cover" />
           <div className="mt-4 space-y-2 text-sm">
-            <p><strong>Data:</strong> {selected.captured_at ? new Date(selected.captured_at).toLocaleString() : "Non disponibile"}</p>
+            <p><strong>Data:</strong> {getStickerDate(selected) ? new Date(getStickerDate(selected) as string).toLocaleString() : "Non disponibile"}</p>
             <p><strong>Coordinate:</strong> {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}</p>
           </div>
-          <div className="mt-4 flex gap-2">
-            <button className="flex-1 rounded-lg border border-green-300/42 bg-green-500/34 py-3 font-semibold text-green-950 shadow-[0_8px_18px_rgba(15,23,42,0.14)] backdrop-blur-md transition hover:bg-green-500/44 active:scale-95">
-              Confermo
-            </button>
-            <button className="flex-1 rounded-lg border border-red-300/42 bg-red-500/34 py-3 font-semibold text-red-950 shadow-[0_8px_18px_rgba(15,23,42,0.14)] backdrop-blur-md transition hover:bg-red-500/44 active:scale-95">
-              Rimosso
-            </button>
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm font-semibold text-gray-900 mb-3">
+              E ancora li?
+            </p>
+            <p className="text-xs text-gray-600 mb-4">
+              Conferma se lo sticker e ancora visibile nel luogo o se e stato rimosso
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleVote(selected.id, "upvote")}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-lg border py-3 font-semibold shadow-[0_8px_18px_rgba(15,23,42,0.14)] backdrop-blur-md transition active:scale-95 ${
+                  sessionVotes[selected.id] === "upvote"
+                    ? "border-green-200/45 bg-green-600/58 text-white ring-2 ring-green-200/45"
+                    : "border-green-300/42 bg-green-500/34 text-green-950 hover:bg-green-500/44"
+                }`}
+              >
+                <span>Si, visto ({selected.upvotes || 0})</span>
+              </button>
+              <button
+                onClick={() => handleVote(selected.id, "downvote")}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-lg border py-3 font-semibold shadow-[0_8px_18px_rgba(15,23,42,0.14)] backdrop-blur-md transition active:scale-95 ${
+                  sessionVotes[selected.id] === "downvote"
+                    ? "border-red-200/45 bg-red-600/58 text-white ring-2 ring-red-200/45"
+                    : "border-red-300/42 bg-red-500/34 text-red-950 hover:bg-red-500/44"
+                }`}
+              >
+                <span>No, rimosso ({selected.downvotes || 0})</span>
+              </button>
+            </div>
           </div>
           <button onClick={() => setSelected(null)} className="mt-3 w-full rounded-2xl bg-gray-100 py-3 text-sm text-gray-700">
             Chiudi

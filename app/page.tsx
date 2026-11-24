@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { upload } from "@vercel/blob/client";
+
+import type { StickerReportDto } from "@/lib/sticker-report";
 
 const Logo = dynamic(() => import("@/components/Logo").then(m => m.Logo), {
   ssr: false,
@@ -17,24 +20,12 @@ const Map = dynamic(() => import("@/components/Map"), {
 
 type Position = { lat: number; lng: number } | null;
 
-type StickerReport = {
-  id: string;
-  image_path: string;
-  lat: number;
-  lng: number;
-  captured_at: string | null;
-  uploaded_at?: string | null;
-  upvotes?: number;
-  downvotes?: number;
-  last_status?: "seen" | "removed" | null;
-  last_status_at?: string | null;
-};
+type StickerReport = StickerReportDto;
 
 type VoteChoice = "upvote" | "downvote" | null;
 type StickerStatus = "seen" | "removed";
 
 export default function HomePageClient() {
-  const [supabase, setSupabase] = useState<any>(null);
   const [draftPosition, setDraftPosition] = useState<Position>(null);
   const [reports, setReports] = useState<StickerReport[]>([]);
   const [file, setFile] = useState<File | null>(null);
@@ -49,38 +40,40 @@ export default function HomePageClient() {
   );
 
   useEffect(() => {
-    const init = async () => {
-      const { supabase: sb } = await import("@/lib/supabase");
-      setSupabase(sb);
+    void loadReports();
 
-      const { data, error } = await sb
-        .from("sticker_reports")
-        .select("*")
-        .order("uploaded_at", { ascending: false });
-
-      if (!error) setReports(data || []);
-
-      const stickerLocation = sessionStorage.getItem("stickerLocation");
-      if (stickerLocation) {
-        try {
-          const location = JSON.parse(stickerLocation);
-          setDraftPosition({ lat: location.lat, lng: location.lng });
-          sessionStorage.removeItem("stickerLocation");
-        } catch (err) {
-          console.error("Error parsing sticker location:", err);
-        }
+    const stickerLocation = sessionStorage.getItem("stickerLocation");
+    if (stickerLocation) {
+      try {
+        const location = JSON.parse(stickerLocation) as {
+          lat: number;
+          lng: number;
+        };
+        setDraftPosition({ lat: location.lat, lng: location.lng });
+        sessionStorage.removeItem("stickerLocation");
+      } catch (err) {
+        console.error("Error parsing sticker location:", err);
       }
-    };
-    init();
+    }
   }, []);
 
   async function loadReports() {
-    if (!supabase) return;
-    const { data, error } = await supabase
-      .from("sticker_reports")
-      .select("*")
-      .order("uploaded_at", { ascending: false });
-    if (!error) setReports(data || []);
+    try {
+      const response = await fetch("/api/stickers", { cache: "no-store" });
+      const data = (await response.json()) as StickerReport[] | { error?: string };
+
+      if (!response.ok || !Array.isArray(data)) {
+        throw new Error(
+          !Array.isArray(data) && data.error
+            ? data.error
+            : "Impossibile caricare gli sticker.",
+        );
+      }
+
+      setReports(data);
+    } catch (error) {
+      console.error("Sticker loading error:", error);
+    }
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -111,7 +104,7 @@ export default function HomePageClient() {
   }
 
   async function save() {
-    if (!supabase || !file || !draftPosition) {
+    if (!file || !draftPosition) {
       alert("Manca foto o posizione.");
       return;
     }
@@ -128,25 +121,35 @@ export default function HomePageClient() {
       const extension = file.name.split(".").pop() || "jpg";
       const name = `${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("stickers")
-        .upload(name, file);
-
-      if (uploadError) {
-        alert(`Errore upload: ${uploadError.message}`);
-        return;
-      }
-
-      const { error: dbError } = await supabase.from("sticker_reports").insert({
-        image_path: name,
-        lat: draftPosition.lat,
-        lng: draftPosition.lng,
-        captured_at: fallbackCapturedAt,
-        uploaded_by: username.trim(),
+      const blob = await upload(`stickers/${name}`, file, {
+        access: "public",
+        handleUploadUrl: "/api/stickers/upload",
+        multipart: true,
       });
 
-      if (dbError) {
-        alert(`Errore database: ${dbError.message}`);
+      const response = await fetch("/api/stickers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imagePath: blob.url,
+          lat: draftPosition.lat,
+          lng: draftPosition.lng,
+          capturedAt: fallbackCapturedAt,
+          uploadedBy: username.trim(),
+        }),
+      });
+
+      const result = (await response.json().catch(() => null)) as
+        | StickerReport
+        | { error?: string }
+        | null;
+
+      if (!response.ok) {
+        alert(
+          result && "error" in result && result.error
+            ? `Errore database: ${result.error}`
+            : "Errore database durante il salvataggio.",
+        );
         return;
       }
 
@@ -158,14 +161,20 @@ export default function HomePageClient() {
       setShowNameForm(false);
       setPreviewUrl(null);
       await loadReports();
+    } catch (error) {
+      console.error("Sticker save error:", error);
+      alert(
+        error instanceof Error
+          ? `Errore durante il salvataggio: ${error.message}`
+          : "Errore imprevisto durante il salvataggio.",
+      );
     } finally {
       setIsSaving(false);
     }
   }
 
   function getUrl(path: string) {
-    if (!supabase) return "";
-    return supabase.storage.from("stickers").getPublicUrl(path).data.publicUrl;
+    return path;
   }
 
   function getStickerDate(sticker: StickerReport) {
@@ -176,7 +185,7 @@ export default function HomePageClient() {
     stickerId: string,
     voteType: "upvote" | "downvote"
   ) {
-    if (!supabase || !selected || selected.id !== stickerId) return;
+    if (!selected || selected.id !== stickerId) return;
 
     try {
       const currentChoice = sessionVotes[stickerId] ?? null;
@@ -217,19 +226,41 @@ export default function HomePageClient() {
         prev.map((s) => (s.id === stickerId ? updatedSticker : s))
       );
 
-      if (nextStatus) {
-        const { error: updateError } = await supabase
-          .from("sticker_reports")
-          .update({
-            last_status: nextStatus,
-            last_status_at: nowIso,
-          })
-          .eq("id", stickerId);
+      const response = await fetch("/api/stickers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stickerId,
+          currentChoice,
+          nextChoice,
+        }),
+      });
 
-        if (updateError) {
-          console.error("Status update error:", updateError);
-        }
+      const persisted = (await response.json().catch(() => null)) as
+        | StickerReport
+        | { error?: string }
+        | null;
+
+      if (!response.ok || !persisted || "error" in persisted) {
+        throw new Error(
+          persisted && "error" in persisted && persisted.error
+            ? persisted.error
+            : "Status update failed.",
+        );
       }
+
+      const syncedSticker: StickerReport = {
+        ...persisted,
+        last_status: nextStatus ?? persisted.last_status,
+        last_status_at: nextStatus ? nowIso : persisted.last_status_at,
+      };
+
+      setSelected(syncedSticker);
+      setReports((prev) =>
+        prev.map((sticker) =>
+          sticker.id === stickerId ? syncedSticker : sticker,
+        ),
+      );
     } catch (err) {
       console.error("Vote error:", err);
     }

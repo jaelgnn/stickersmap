@@ -3,22 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import type { StickerReportDto } from "@/lib/sticker-report";
 import { Logo } from "@/components/Logo";
 
-type StickerReport = {
-  id: string;
-  image_path: string;
-  lat: number;
-  lng: number;
-  captured_at: string | null;
-  uploaded_at?: string | null;
-  upvotes?: number;
-  downvotes?: number;
-  uploaded_by?: string;
-  last_status?: "seen" | "removed" | null;
-  last_status_at?: string | null;
-};
+type StickerReport = StickerReportDto;
 
 type StickerWithLocation = StickerReport & {
   country?: string;
@@ -28,7 +16,6 @@ type StickerWithLocation = StickerReport & {
   status: "pending" | "approved" | "rejected";
   upvotes: number;
   downvotes: number;
-  uploaded_by?: string;
 };
 
 type GroupedStickers = {
@@ -439,20 +426,21 @@ export default function StickersPage() {
   async function loadStickers() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("sticker_reports")
-        .select("*")
-        .order("uploaded_at", { ascending: false });
+      const response = await fetch("/api/stickers", { cache: "no-store" });
+      const data = (await response.json()) as
+        | StickerReport[]
+        | { error?: string };
 
-      if (error) {
-        console.error("Error loading stickers:", error);
-        setLoading(false);
-        return;
+      if (!response.ok || !Array.isArray(data)) {
+        throw new Error(
+          !Array.isArray(data) && data.error
+            ? data.error
+            : "Impossibile caricare gli sticker.",
+        );
       }
 
-      // Fetch location data for each sticker
       const stickersWithLocation = await Promise.all(
-        (data || []).map(async (sticker: StickerReport) => {
+        data.map(async (sticker: StickerReport) => {
           const location = await getLocationFromCoordinates(
             sticker.lat,
             sticker.lng
@@ -463,7 +451,7 @@ export default function StickersPage() {
             address: location.address || "Indirizzo sconosciuto",
             city: location.city || "Sconosciuta",
             cap: location.cap || "-",
-            status: "pending" as const, // Default status - can be updated from DB if available
+            status: "pending" as const,
             upvotes: sticker.upvotes || 0,
             downvotes: sticker.downvotes || 0,
             last_status: sticker.last_status || null,
@@ -472,7 +460,6 @@ export default function StickersPage() {
         })
       );
 
-      // Group by country and sort by date within each country
       const grouped: GroupedStickers = {};
 
       stickersWithLocation.forEach((sticker) => {
@@ -483,18 +470,16 @@ export default function StickersPage() {
         grouped[country].push(sticker);
       });
 
-      // Sort each country's stickers chronologically
       Object.keys(grouped).forEach((country) => {
         grouped[country].sort((a, b) => {
           const stickerDateA = getStickerDate(a);
           const stickerDateB = getStickerDate(b);
           const dateA = stickerDateA ? new Date(stickerDateA).getTime() : 0;
           const dateB = stickerDateB ? new Date(stickerDateB).getTime() : 0;
-          return dateB - dateA; // Most recent first
+          return dateB - dateA;
         });
       });
 
-      // Sort countries alphabetically
       const sortedCountries = Object.keys(grouped).sort((a, b) =>
         a.localeCompare(b, "it")
       );
@@ -505,13 +490,17 @@ export default function StickersPage() {
 
       setGroupedStickers(finalGrouped);
       setStickers(stickersWithLocation);
+    } catch (error) {
+      console.error("Error loading stickers:", error);
+      setGroupedStickers({});
+      setStickers([]);
     } finally {
       setLoading(false);
     }
   }
 
   function getUrl(path: string) {
-    return supabase.storage.from("stickers").getPublicUrl(path).data.publicUrl;
+    return path;
   }
 
   async function handleVote(stickerId: string, voteType: "upvote" | "downvote") {
@@ -557,8 +546,6 @@ export default function StickersPage() {
       });
 
       setSelectedSticker(updatedSticker);
-
-      // Update in the stickers list
       setStickers((prev) =>
         prev.map((s) => (s.id === stickerId ? updatedSticker : s))
       );
@@ -573,29 +560,51 @@ export default function StickersPage() {
         return updated;
       });
 
-      if (nextStatus) {
-        const { error: updateError } = await supabase
-          .from("sticker_reports")
-          .update({
-            last_status: nextStatus,
-            last_status_at: nowIso,
-          })
-          .eq("id", stickerId);
+      const response = await fetch("/api/stickers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stickerId,
+          currentChoice,
+          nextChoice,
+        }),
+      });
 
-        if (updateError) {
-          console.error("Status update error:", updateError);
-        }
+      const persisted = (await response.json().catch(() => null)) as
+        | StickerReport
+        | { error?: string }
+        | null;
+
+      if (!response.ok || !persisted || "error" in persisted) {
+        throw new Error(
+          persisted && "error" in persisted && persisted.error
+            ? persisted.error
+            : "Status update failed.",
+        );
       }
 
-      // TODO: Send vote to database
-      // const { error } = await supabase
-      //   .from("sticker_votes")
-      //   .insert({
-      //     sticker_id: stickerId,
-      //     vote_type: voteType,
-      //     created_at: new Date(),
-      //   });
-      // if (error) console.error("Vote error:", error);
+      const syncedSticker: StickerWithLocation = {
+        ...updatedSticker,
+        ...persisted,
+        last_status: nextStatus ?? persisted.last_status,
+        last_status_at: nextStatus ? nowIso : persisted.last_status_at,
+      };
+
+      setSelectedSticker(syncedSticker);
+      setStickers((prev) =>
+        prev.map((sticker) =>
+          sticker.id === stickerId ? syncedSticker : sticker,
+        ),
+      );
+      setGroupedStickers((prev) => {
+        const synced = { ...prev };
+        Object.keys(synced).forEach((country) => {
+          synced[country] = synced[country].map((sticker) =>
+            sticker.id === stickerId ? syncedSticker : sticker,
+          );
+        });
+        return synced;
+      });
     } catch (err) {
       console.error("Vote error:", err);
     }
@@ -644,7 +653,6 @@ export default function StickersPage() {
         },
         body: JSON.stringify({
           stickerId: sticker.id,
-          imagePath: sticker.image_path,
           password,
         }),
       });

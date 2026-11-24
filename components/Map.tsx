@@ -25,10 +25,18 @@ type StickerReport = {
   captured_at: string | null;
 };
 
-const MONO_TILE_URL =
-  "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png";
-const MONO_TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const CARTO_API_KEY =
+  process.env.NEXT_PUBLIC_CARTO_BASEMAPS_API_KEY?.trim();
+
+const MONO_TILE_URL = CARTO_API_KEY
+  ? `https://basemaps.cartocdn.com/rastertiles/light_nolabels/{z}/{x}/{y}.png?key=${encodeURIComponent(
+      CARTO_API_KEY,
+    )}`
+  : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+const MONO_TILE_ATTRIBUTION = CARTO_API_KEY
+  ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const DEFAULT_MAP_CENTER: [number, number] = [46.004238, 8.960317];
 
 function MapClickHandler({
